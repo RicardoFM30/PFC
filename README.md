@@ -2,131 +2,177 @@
 
 ## Descripción general
 
-Este repositorio contiene el desarrollo de un proyecto de fin de curso para un sistema empresarial de Machine Learning e Ingeniería de Datos en el sector PropTech. El objetivo es estimar el `precio_noche` óptimo para alquileres vacacionales mediante un modelo de regresión supervisada que combina datos físicos del inmueble, reseñas cualitativas y métricas de demanda en tiempo real.
+Este repositorio contiene el desarrollo del Proyecto de Fin de Carrera (PFC) orientado al diseño e implementación de un sistema empresarial de Machine Learning e Ingeniería de Datos en el sector PropTech. El objetivo central es estimar la tarifa por noche (`price`) óptima para alojamientos turísticos mediante un modelo de regresión supervisada.
+
+El sistema rompe con los silos de datos tradicionales al unificar características físicas del inmueble (infraestructura estática), reputación digital mediante el procesamiento de texto libre de opiniones (NLP) y el comportamiento de la demanda del mercado en tiempo real (streaming).
+
+---
 
 ## Arquitectura del proyecto
 
-El diseño del proyecto se basa en una arquitectura híbrida multifuente que integra:
+El diseño se basa en una arquitectura híbrida y políglota multifuente que integra componentes locales y servicios en la nube de AWS:
 
-- Amazon RDS para datos estructurados y transaccionales.
-- MongoDB Atlas para almacenamiento de reseñas y datos semiestructurados.
-- Apache Kafka para ingestión de eventos de búsqueda y métricas dinámicas.
-- Amazon S3 como Data Lake central.
-- AWS Glue y Amazon Athena para procesos ELT y análisis.
-- Hugging Face Hub para fine-tuning de modelos NLP.
-- Gradio para la interfaz interactiva de usuario.
+* **Amazon RDS (PostgreSQL):** Almacenamiento de datos maestros estructurados y transaccionales del inventario de propiedades (`listings`).
+* **MongoDB Atlas:** Almacenamiento NoSQL documental para el corpus masivo y semiestructurado de reseñas históricas (`reviews`).
+* **Apache Kafka:** Ingestión y procesamiento de flujos de eventos de navegación (telemetría de clics y urgencia de demanda).
+* **Amazon S3 (Data Lake):** Repositorio único de la verdad donde se consolidan las fuentes en matrices analíticas listas para el entrenamiento.
+* **AWS Glue y Amazon Athena:** Servicios cloud-native para catalogación, procesos ETL masivos y validación relacional mediante SQL.
+
+---
 
 ## Estructura del repositorio
 
+A partir de la disposición actual del espacio de trabajo, el árbol del proyecto se estructura de la siguiente forma:
+
 ```text
 PFC/
-├── datasets/
-│   ├── raw/
-│   └── processed/
-├── notebooks/
-│   └── hito_00_vision_problema.ipynb
-├── scripts/
-│   └── pipeline_inicio.py
-├── models/
-├── docs/
-│   ├── arquitectura.md
-│   └── decisiones_tecnicas.md
-├── requirements.txt
-├── .gitignore
-├── .env.example
-└── README.md
+├── .vscode/                     # Configuración del entorno de desarrollo en VS Code
+├── capturas/                    # Evidencias visuales y gráficas para la memoria del PFC
+├── datasets/                    # Almacenamiento local segmentado de datos
+│   ├── processed/               # Datasets limpios listos para ingeniería de características
+│   └── raw/                     # Datos brutos de Inside Airbnb por ciudades
+│       ├── Barcelona/
+│       ├── Madrid/
+│       ├── Málaga/
+│       └── Sevilla/
+├── docker/                      # Entornos de contenedores locales
+│   └── docker-compose.yml       # Orquestación local de Apache Kafka (KRaft mode)
+├── docs/                        # Documentación técnica del proyecto
+│   └── decisiones_tecnicas.md   # Registro de justificaciones de arquitectura y diseño
+├── models/                      # Almacenamiento de artefactos y pesos de los modelos entrenados
+├── notebooks/                   # Cuadernos interactivos de desarrollo y análisis
+│   └── hito_00_vision_problema.ipynb  # Entregable teórico y estrategia de variables
+├── scripts/                     # Scripts de automatización y pipelines de producción
+│   └── pipeline_inicio.py       # Pipeline unificado de despliegue IaC, ingesta y unificación
+├── venv/                        # Entorno virtual aislado de Python
+├── .env                         # Variables de entorno y credenciales privadas (Ignorado en Git)
+├── .env.example                 # Plantilla de configuración de variables para despliegue
+├── .gitignore                   # Exclusiones de control de versiones
+├── README.md                    # Documentación principal del repositorio
+└── requirements.txt             # Dependencias y librerías del proyecto organizadas por versiones
 
 ```
 
-## Estado actual del proyecto
+---
 
-* Hito 0 iniciado y entregable teórico generado en `notebooks/hito_00_vision_problema.ipynb`.
-* Justificación técnica de la arquitectura multifuente registrada en `docs/decisiones_tecnicas.md`.
-* Script base de pipeline `scripts/pipeline_inicio.py` implementado con despliegue simulado, ingesta y consolidación hacia S3.
+## Estado actual del proyecto (Hito 0)
+
+* **Modelado analítico:** Hito 0 completado y documentado formalmente en el cuaderno interactivo `notebooks/hito_00_vision_problema.ipynb`.
+* **Infraestructura automatizada:** Script unificado de despliegue (`scripts/pipeline_inicio.py`) configurado en modo **Infraestructura como Código (IaC)**. Es capaz de aprovisionar buckets S3, levantar instancias RDS reales en AWS, interactuar con el Security Group del Firewall y cruzar datos multifuente de forma idempotente.
+
+---
 
 ## Guía de lanzamiento y ejecución
 
-Sigue estos pasos para preparar el entorno virtual y ejecutar el pipeline automatizado del Hito 0 en un equipo completamente limpio:
+Sigue estos pasos para preparar el entorno virtual y lanzar todo el ecosistema de datos del proyecto:
 
 ### 1. Prerrequisitos del sistema
 
-Antes de arrancar, asegúrate de tener instalado en tu máquina local:
+Asegúrate de contar con las siguientes herramientas activas en tu máquina local:
 
-* **Python 3.9 o superior**.
-* **Docker**
+* **Python 3.9 o superior** (Entorno de desarrollo testeado en Python 3.14).
+* **Docker Desktop** (Con el daemon encendido).
 
 ### 2. Configuración del entorno virtual
 
-Abre tu terminal, navega hasta la carpeta raíz del proyecto (`PFC/`) y ejecuta secuencialmente los siguientes comandos:
+Navega en tu terminal hasta la raíz del proyecto (`PFC/`) y ejecuta los siguientes comandos para aislar e instalar las dependencias:
 
 ```bash
-# 1. Crear el entorno virtual de Python
+# 1. Crear el entorno virtual
 python -m venv venv
 
 # 2. Activar el entorno virtual
-# En Windows (PowerShell / CMD):
+# En Windows (CMD / PowerShell):
 .\venv\Scripts\activate
 # En Mac / Linux / Git Bash:
 source venv/bin/activate
 
-# 3. Instalar las dependencias del proyecto
+# 3. Actualizar pip e instalar dependencias requeridas
+pip install --upgrade pip
 pip install -r requirements.txt
 
 ```
 
-### 3. Configuración de variables de entorno
+### 3. Configuración de variables de entorno (.env)
 
-Duplica el archivo `.env.example`, renómbralo exactamente a **`.env`** en la raíz del proyecto y rellena los parámetros con tus credenciales reales de AWS y MongoDB Atlas:
+Crea un archivo llamado exactamente **`.env`** en la raíz del proyecto basándote en la plantilla `.env.example`. Rellena los campos con tus credenciales temporales de AWS Learner Lab y tu clúster de MongoDB Atlas:
 
 ```env
+# Credenciales y configuración AWS (Temporales de Learner Lab)
+AWS_ACCESS_KEY_ID=ASIARU5IC4M7...
+AWS_SECRET_ACCESS_KEY=r5go4cQ+uaE3...
+AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEOb..........
 AWS_REGION=us-east-1
-S3_BUCKET_NAME=tu-bucket-data-lake-proptech  # Debe ser un nombre global único en AWS
+
+# Configuración S3 (Data Lake)
+S3_BUCKET_NAME=pfc-data-lake-proptech-ricardo
+
+# Configuración para que AWS cree de forma dinámica el RDS
+RDS_INSTANCE_ID=servidor-pfc-poc
+RDS_DB_NAME=proptechdb
+RDS_USER=postgres
+RDS_PASSWORD=UnaPasswordSegura123!
+
+# Configuración Apache Kafka Local
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
 KAFKA_TOPIC=busquedas_tiempo_real
-MONGO_URI=mongodb+srv://tu_usuario:tu_password@cluster.mongodb.net/
+
+# Configuración MongoDB Atlas
+MONGO_URI=mongodb+srv://usuario:contraseña@cluster.mongodb.net/?appName=Cluster
 MONGO_DATABASE=pfc_proptech
 MONGO_COLLECTION=reviews
 
 ```
 
-### 4. Lanzamiento del pipeline
+> ⚠️ **Nota de AWS Learner Lab:** Las credenciales de la suite de estudiantes caducan periódicamente. Recuerda actualizar los campos `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_SESSION_TOKEN` en tu `.env` cada vez que reinicies el laboratorio en la consola web.
 
-Con el entorno virtual activado y Docker Desktop encendido, ejecuta el script unificado:
+### 4. Lanzamiento del pipeline completo
+
+Con tu entorno virtual activado y Docker Desktop en ejecución, lanza el script maestro:
 
 ```bash
 python scripts/pipeline_inicio.py
 
 ```
 
-### 5. Comportamiento automatizado (¿Qué sucede por detrás?)
+---
 
-El pipeline ejecutará las siguientes fases de forma inteligente y defensiva:
+## Comportamiento automatizado por capas
 
-1. **Verificación de Kafka:** El script intentará comunicarse con el broker. Al detectar que está apagado, invocará a Docker de manera interna ejecutando `docker compose up -d` sobre el archivo de configuración alojado en `docker/docker-compose.yml`.
-2. **Bucle de espera inteligente (Polling):** El script iniciará consultas de control cada 5 segundos (con un límite máximo de 60 segundos) dándole margen al contenedor para descargar la imagen e inicializar la arquitectura Kafka KRaft de forma segura. Avanzará en el instante exacto en el que Kafka responda de forma positiva.
-3. **Despliegue e Ingesta:** Se creará automáticamente tu bucket en AWS S3 y el tópico en Kafka. Acto seguido, se insertarán los datos de la simulación en RDS, MongoDB Atlas y el stream en tiempo real de Kafka de forma idempotente (borrando ejecuciones previas para evitar duplicados).
-4. **Consolidación:** Se extraerán los datos distribuidos, se realizará el `JOIN` lógico en memoria utilizando el identificador común de la vivienda y se subirá el archivo maestro consolidado directamente a tu Data Lake en S3.
+Al ejecutar el pipeline, el script procesa de forma defensiva y asíncrona la automatización de la infraestructura:
 
-### 6. Verificación del éxito
+1. **Orquestación de Contenedores (Kafka):** El script valida la disponibilidad del puerto de Kafka. Si no responde, ejecuta un subproceso de Docker Compose sobre `docker/docker-compose.yml` para levantar el broker en modo KRaft, aplicando un bucle de espera inteligente (*polling*) hasta que esté listo.
+2. **Aprovisionamiento de Data Lake (S3):** Conéctandose mediante el SDK `boto3`, verifica la existencia del bucket configurado. Si no existe, lo crea dinámicamente en la región establecida.
+3. **Despliegue de Infraestructura como Código (Amazon RDS):** El script ordena a AWS la creación de una instancia de base de datos relacional PostgreSQL de tipo `db.t3.micro`. El código detiene la ejecución de forma segura mediante un *waiter* activo de `boto3` hasta que el servidor pasa de estado *Creating* a *Available* (Aproximadamente 5-10 minutos).
+4. **Apertura del Firewall de AWS (Security Groups):** Una vez que RDS tiene IP pública, el script localiza de forma automática su *VPC Security Group* asignado e inyecta una regla de entrada de red para liberar el puerto TCP `5432` de forma remota.
+5. **Poblado de Datos e Ingesta:** El script inicializa el esquema DDL en RDS (tabla `listings`), realiza una limpieza por idempotencia en MongoDB Atlas e inyecta ráfagas de datos ficticios en Kafka, Mongo y RDS de manera coordinada.
+6. **Consolidación y Carga (JOIN Híbrido):** Extrae la información de las tres fuentes, realiza un acoplamiento estructurado en memoria usando la clave simétrica `listing_id` y sube la matriz resultante en formato JSON directamente a la zona de almacenamiento de S3.
 
-Sabrás que todo ha funcionado correctamente si visualizas el mensaje de cierre en la terminal:
-`✔ Pipeline completado. Datos reales extraídos, transformados y cargados.`
+---
 
-Para realizar una auditoría completa y comprobar físicamente que los datos han llegado a su destino en cada herramienta, sigue estas rutas:
+## Verificación del éxito de la PoC
 
-**1. Verificación en MongoDB Atlas (Datos cualitativos / Texto libre):**
-- Inicia sesión en tu panel web de [MongoDB Atlas](https://cloud.mongodb.com/).
-- En el menú lateral izquierdo, ve a **Database** y haz clic en el botón **Browse Collections** de tu clúster.
-- Busca la base de datos `pfc_proptech`. Al desplegarla, entra en la colección `reviews`. Ahí podrás ver todos los documentos BSON/JSON insertados con los comentarios y puntuaciones.
+Sabrás que el pipeline se ha completado correctamente al visualizar el log de cierre en tu terminal:
+`✔ Pipeline e Infraestructura completados con éxito.`
 
-**2. Verificación en Apache Kafka (Eventos en Streaming):**
-- Dado que Kafka está encapsulado en tu contenedor Docker local, puedes "escuchar" el canal abriendo una nueva ventana en tu terminal y ejecutando este comando:
-  ```bash
-  docker exec -it pfc_kafka_proptech kafka-console-consumer --bootstrap-server localhost:9092 --topic busquedas_tiempo_real --from-beginning```
-- Verás aparecer en tu consola la ráfaga de eventos JSON que simulan las búsquedas. (Pulsa Ctrl + C para salir del modo lectura).
+Para auditar de forma independiente que los datos se han distribuido y persistido correctamente en cada tecnología, puedes seguir estos pasos de verificación:
 
-**3. Verificación en Amazon S3 (Data Lake / Dataset unificado):**
+### A. Verificación en Amazon RDS (Datos Físicos Estructurados)
 
-- Inicia sesión en tu consola de AWS y dirígete al servicio S3.
-- Entra en el bucket que configuraste en tu .env.
-- Navega a la carpeta consolidated/. Encontrarás el dataset maestro unificado (proptech_dataset_real.json o proptech_dataset.json), listo para ser consumido en las siguientes fases de Machine Learning.
+El script imprimirá en la terminal el host público asignado por AWS (ej. `servidor-pfc-poc.cqjscsd5i2xf.us-east-1.rds.amazonaws.com`).
+
+* Abre tu gestor de base de datos preferido (DBeaver, pgAdmin o extensiones de VS Code).
+* Crea una nueva conexión para **PostgreSQL** usando el Host impreso, puerto `5432`, base de datos `proptechdb`, usuario `postgres` y la contraseña de tu archivo `.env`.
+* Ejecuta la consulta: `SELECT * FROM listings;` para verificar la existencia de los registros.
+
+### B. Verificación en MongoDB Atlas (Datos Cualitativos / Texto Libre)
+
+* Inicia sesión en la consola web de [MongoDB Atlas](https://cloud.mongodb.com/).
+* Navega a **Database** -> **Browse Collections** dentro de tu clúster activo.
+* Comprueba que se ha generado la base de datos establecida en tu `.env` y que la colección de reseñas contiene los documentos JSON de prueba con sus respectivos campos.
+
+### C. Verificación en Amazon S3 (Data Lake / Súper Tabla Analítica)
+
+* Inicia sesión en la consola web de AWS y entra al servicio de **S3**.
+* Accede al bucket configurado (`pfc-data-lake-proptech-ricardo`).
+* Navega al directorio **`gold_zone/`**. Allí encontrarás el archivo unificado **`dataset_unificado.json`**. Este objeto consolida la información de las tres infraestructuras y representa el punto de entrada directo para el entrenamiento de los algoritmos de regresión de Machine Learning.

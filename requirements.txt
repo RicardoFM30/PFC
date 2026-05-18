@@ -2,3 +2,5 @@ boto3>=1.28.0
 kafka-python>=2.0.2
 pymongo>=4.5.0
 python-dotenv>=1.0.0
+pandas>=2.0.0
+psycopg2-binary
