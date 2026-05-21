@@ -1,4 +1,4 @@
-# Documento Técnico 3: Arquitectura del Sistema e Integración en Repositorio Único
+# Documento Técnico: Arquitectura del Sistema e Integración en Repositorio Único
 
 Este documento detalla el diseño arquitectónico del pipeline de datos híbrido para el sistema de precios dinámicos. La arquitectura aborda el reto de unificar datos estructurados, semiestructurados y en streaming, consolidando la información en un repositorio único optimizado para el entrenamiento del modelo de Machine Learning.
 
@@ -37,16 +37,31 @@ El inventario de las propiedades (`listings.csv`) presenta una estructura rígid
 
 El registro histórico de opiniones (`reviews.csv`) aloja millones de filas con el campo `comments`, el cual es texto libre no estructurado de longitud muy variable.
 
-* **Justificación:** Se opta por **MongoDB Atlas** (frente a Amazon DocumentDB) por su madurez en la capa *cloud-native* y su flexibilidad para almacenar documentos BSON. MongoDB permite indexar masivamente por `listing_id` y procesar documentos sin un esquema rígido (es común que algunas reseñas no tengan texto y solo tengan metadatos). Además, sus *Aggregation Pipelines* permiten prefiltrar y limpiar el texto de forma distribuida en la base de datos antes de enviarlo al modelo de NLP, aliviando la carga de cómputo del pipeline.
+* **Justificación:** Se opta por **MongoDB Atlas** (frente a Amazon DocumentDB) por su madurez en la capa *cloud-native* y su flexibilidad para almacenar documentos BSON. MongoDB permite indexar masivamente por `listing_id` y procesar documentos sin un esquema rígido (es común que algunas reseñas no tengan texto y solo tengan metadatos).
+
+¡Ah, perdona la confusión! Entendido perfectamente. Quieres que la **Nota de la Sección 3** mencione explícitamente al script simulador que creamos para meter el tráfico en Kafka, que en tu estructura de archivos se llama **`scripts/añadir_eventos_kafka.py`**.
+
+Aquí tienes cómo queda la **Sección 3** al completo con esa referencia exacta añadida en el texto:
 
 ---
 
 ## 3. Procesamiento y Captura en Tiempo Real: Apache Kafka
 
-La telemetría de navegación de los usuarios ("usuarios entrando a ver la publicación") es un flujo continuo, de alta velocidad y de escritura intensiva que colapsaría una base de datos relacional tradicional si se intentara escribir fila a fila.
+La telemetría de navegación de los usuarios ("usuarios entrando a ver la publicación") es un flujo continuo de **Logs de Analítica Web de alta velocidad (*Clickstream*)**, emulando el rastro que deja un usuario en su navegador web cuando interactúa concurrentemente con un anuncio de la plataforma.
 
-* **Justificación Técnica:** **Apache Kafka** actúa como la capa de desacoplamiento e ingesta en tiempo real (*Message Broker* distribuido). Su arquitectura basada en un log de confirmaciones append-only distribuido garantiza una latencia de milisegundos y un rendimiento de miles de eventos por segundo.
-Kafka organiza los eventos de clics bajo el topic `demand_telemetry`. El consumidor de Kafka agrupa estos eventos asíncronos en ventanas de tiempo de 15 minutos mediante operaciones de agregación y calcula el campo elástico `volumen_clicks_15min` antes de volcarlo como un micro-batch al Data Lake en Amazon S3.
+* **Justificación Técnica:** **Apache Kafka** actúa como la capa de desacoplamiento e ingesta en tiempo real (*Message Broker* distribuido). Su arquitectura basada en un log de confirmaciones *append-only* distribuido garantiza una latencia de milisegundos y un rendimiento de miles de eventos por segundo.
+* **Estructura del Mensaje e Idempotencia:** El sistema captura las ráfagas estocásticas de tráfico bajo el tópico `busquedas_tiempo_real`, utilizando el identificador de la propiedad (**`listing_id`**) como **Clave (Key)** del mensaje para asegurar un particionamiento determinista. El valor del mensaje persiste un JSON con la interacción atómica exacta: `event_id`, `user_id` anónimo, la acción del navegador (`ver_anuncio`, `click_galeria`, etc.), el tipo de dispositivo y el `timestamp` Unix.
+* **Persistencia de Eventos Totales (Sin Agregación en Ingesta):** A diferencia de las arquitecturas que agrupan o resumen la información en ventanas temporales cortas (perdiendo el detalle del rastro), el consumidor de Kafka drena y vuelca los eventos **uno a uno en su estado puro y bruto** al Data Lake en Amazon S3 (`raw/eventos_kafka/`). Esto preserva el histórico completo de interacciones totales de la plataforma. Posteriormente, el motor de AWS Glue se encarga de procesar analíticamente este *log* completo para calcular el **volumen total acumulado de interacciones por propiedad**, convirtiéndolo en una métrica estática de popularidad absoluta para el modelo de Machine Learning.
+
+**Nota:** En la práctica, para validar la viabilidad del prototipo y poblar el sistema con un volumen denso de datos de comportamiento, se desarrolló el script **`scripts/añadir_eventos_kafka.py`**, encargado de actuar como un **generador de tráfico en Python**. Este componente extrae los identificadores reales de las propiedades unificadas en el dataset maestro y modela ráfagas de visitas concurrentes hacia el entorno de contenedores locales (Docker).
+
+![ScriptEventosKafka](../capturas/capturaGeneradoraKafka.png)
+
+Para garantizar el realismo de los registros analíticos (*clickstream*), la generación de interacciones dentro de este script no es puramente aleatoria, sino que se parametriza mediante una distribución de probabilidad ponderada que emula el embudo de conversión (*funnel*) de navegación real de un portal inmobiliario: un **50%** de probabilidad para la acción pasiva de visualización (`ver_anuncio`), un **25%** para la interacción visual (`click_galeria`), un **15%** para la consulta de ubicación (`ver_mapa`), un **8%** para la validación cualitativa (`leer_reviews`) y únicamente un **2%** para la acción de alta intención de conversión (`clic_contactar`).
+
+![EventosKafka](../capturas/eventosKafka.png)
+
+Finalmente, el flujo se diseñó bajo un modelo híbrido donde los eventos se inyectan en streaming asíncrono asignando el `listing_id` en los metadatos de la cabecera del mensaje de Kafka y se drenan eficientemente en el orquestador mediante operaciones controladas de tipo `poll()`, evitando el bloqueo de los hilos de ejecución y permitiendo su empaquetado inmediato hacia el almacenamiento en la nube.
 
 ---
 
@@ -87,6 +102,6 @@ Como resumen del entregable de arquitectura, se presenta la matriz de responsabi
 | **Repositorio Único** | **Amazon S3** | Híbrido (Tabular/Parquet) | Batch / Micro-batch | **Data Lake Central.** Zona de unificación final y persistencia para el modelo de ML. |
 | **Origen Transaccional** | **Amazon RDS** | Estructurado (SQL) | Batch Diario (Lambda) | Almacena datos maestros físicos inmóviles del inmueble. |
 | **Origen Documental** | **MongoDB Atlas** | Semiestructurado (JSON) | Batch Diario (Lambda) | Almacena el corpus masivo de reseñas para el modelo NLP. |
-| **Origen Ingesta Streaming** | **Apache Kafka** | No estructurado (Eventos) | Tiempo Real (Streaming) | Captura y agrega los clics de usuarios concurrentes en ventanas de 15 minutos. |
+| **Origen Ingesta Streaming** | **Apache Kafka (Docker)** | Eventos (*Clickstream*) | Localhost (Puerto 9092) | Captura de forma asíncrona cada evento de navegación individual y los persiste en bruto para el cálculo de métricas totales. |
 | **Orquestador Ingesta** | **AWS Lambda + `boto3`** | Lógica de Control (Python) | Serverless / Event-Driven | Script ligero encargado de extraer datos de RDS/Mongo y subirlos a la capa Raw de S3. |
 | **Motor de ETL Pesado** | **AWS Glue + Athena** | Procesamiento de Datos | Batch Programado | Crawlea S3, ejecuta el JOIN lógico masivo y guarda la tabla analítica final. |
