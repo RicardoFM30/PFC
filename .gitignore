@@ -23,8 +23,6 @@ ENV/
 *.swp
 
 # Project Specific Data and Logs
-datasets/raw/
-models/
 logs/
 *.pkl
 *.pkt
