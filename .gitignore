@@ -24,7 +24,6 @@ ENV/
 
 # Project Specific Data and Logs
 datasets/raw/
-datasets/processed/
 models/
 logs/
 *.pkl

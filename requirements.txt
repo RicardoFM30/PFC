@@ -10,3 +10,5 @@ matplotlib
 seaborn
 scipy
 scikit-learn
+xgboost
+category-encoders
