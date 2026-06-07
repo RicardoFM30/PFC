@@ -12,3 +12,6 @@ scipy
 scikit-learn
 xgboost
 category-encoders
+gradio
+gradio_client
+kagglehub
